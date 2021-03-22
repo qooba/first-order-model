@@ -9,7 +9,7 @@ WORKDIR /app
 COPY ./requirements.txt /app/requirements.txt
 RUN pip3 install \
   https://download.pytorch.org/whl/cu100/torch-1.0.0-cp36-cp36m-linux_x86_64.whl \
-  git+https://github.com/1adrianb/face-alignment \
+  git+https://github.com/1adrianb/face-alignment@cc02cf6f879c652f4fffc7b35be85c951c5e580e \
   -r requirements.txt
 
 ENV DEBIAN_FRONTEND=noninteractive

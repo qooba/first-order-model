@@ -8,8 +8,7 @@ import numpy as np
 from skimage.transform import resize
 #from IPython.display import HTML
 import warnings
-from demo import load_checkpoints
-from demo import make_animation
+from demo import load_checkpoints, make_animation, find_best_frame
 from skimage import img_as_ubyte
 from image_crop import image_crop
 warnings.filterwarnings("ignore")
@@ -36,7 +35,18 @@ class Runner:
         driving_video = [resize(frame, (256, 256))[..., :3] for frame in driving_video]
         generator, kp_detector = load_checkpoints(config_path=opt.config, checkpoint_path=opt.checkpoint)
 
-        predictions = make_animation(source_image, driving_video, generator, kp_detector, relative=True)
+        if opt.find_best_frame or opt.best_frame is not None:
+            i = opt.best_frame if opt.best_frame is not None else find_best_frame(source_image, driving_video, cpu=opt.cpu)
+            print ("Best frame: " + str(i))
+            driving_forward = driving_video[i:]
+            driving_backward = driving_video[:(i+1)][::-1]
+            predictions_forward = make_animation(source_image, driving_forward, generator, kp_detector, relative=opt.relative, adapt_movement_scale=opt.adapt_scale, cpu=opt.cpu)
+            predictions_backward = make_animation(source_image, driving_backward, generator, kp_detector, relative=opt.relative, adapt_movement_scale=opt.adapt_scale, cpu=opt.cpu)
+            predictions = predictions_backward[::-1] + predictions_forward[1:]
+        else:
+            predictions = make_animation(source_image, driving_video, generator, kp_detector, relative=opt.relative, adapt_movement_scale=opt.adapt_scale, cpu=opt.cpu)
+
+        #predictions = make_animation(source_image, driving_video, generator, kp_detector, relative=True)
         imageio.mimsave(opt.output, [img_as_ubyte(frame) for frame in predictions], fps=fps)
 
 if __name__ == '__main__':
@@ -52,7 +62,11 @@ if __name__ == '__main__':
     parser.add_argument('--output', default='./generated.mp4', type=str, help='output video')
 
     parser.add_argument("--relative", dest="relative", action="store_true", help="use relative or absolute keypoint coordinates")
+    parser.add_argument("--no-relative", dest="relative", action="store_false", help="don't use relative or absolute keypoint coordinates")
+    parser.set_defaults(relative=True)
     parser.add_argument("--adapt_scale", dest="adapt_scale", action="store_true", help="adapt movement scale based on convex hull of keypoints")
+    parser.add_argument("--no-adapt_scale", dest="adapt_scale", action="store_false", help="no adapt movement scale based on convex hull of keypoints")
+    parser.set_defaults(adapt_scale=True)
 
     parser.add_argument("--find_best_frame", dest="find_best_frame", action="store_true",
                         help="Generate from the frame that is the most alligned with source. (Only for faces, requires face_aligment lib)")
@@ -64,6 +78,13 @@ if __name__ == '__main__':
 
 
     opt = parser.parse_args()
+    for key, val in vars(opt).items():
+        if isinstance(val, list):
+            val = [str(v) for v in val]
+            val = ','.join(val)
+        if val is None:
+            val = 'None'
+        print('{:>20} : {:<50}'.format(key, val))
 
     if not os.path.exists("checkpoints"):
         os.makedirs("checkpoints",exist_ok=True)
